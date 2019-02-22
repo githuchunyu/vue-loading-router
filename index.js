@@ -10,34 +10,40 @@ import Error from './components/Error.vue'
  * @param Options.timeout Int 超时判定时间 - 毫秒
  * @return Promise
  */
-const loadingRouter = ({ Component, Loading = Loading, Error = Error, delay, timeout }) {
-  const Instance = new Vue({
+const loadingRouter = ({ Component, Loading = Loading, Error = Error, timeout }) {
+  // 挂载loading到body
+  const LoadingInstance = new Vue({
     render (h) {
       return h(Loading)
     }
   })
-  const el = Instance.$mount().$el
+  const el = LoadingInstance.$mount().$el
   document.body.appendChild(el)
-  return () => {
-    return new Promise(resolve => {
-      // 设置延迟
-      setTimeout(() => {
-        let passed = false
-        let checkTimeout = setTimeout(() => {
-          passed = true
+
+  // 生成组件所需的promise对象
+  const waitLoading = new Promise(resolve => {
+    // 超时判断
+    let out = false, checkTimeout = null
+    if (timeout > 0) {
+      checkTimeout = setTimeout(() => {
+        out = true
+        if (Error) {
           document.body.removeChild(el)
           resolve(Error)
-        }, timeout || Infinity)
-        Component.then(res => {
-          if (passed) {
-            return
-          }
-          clearTimeout(checkTimeout)
-          el && document.body.removeChild(el)
-          resolve(Component)
-        })
-      }, delay || 0)
+        }
+      }, timeout)
+    }
+    // 加载组件及加载完成后续处理
+    Component.then(res => {
+      if (out) { return }
+      checkTimeout && clearTimeout(checkTimeout)
+      document.body.removeChild(el)
+      resolve(Component)
     })
+  })
+
+  return () => {
+    return waitLoading
   }
 }
 
